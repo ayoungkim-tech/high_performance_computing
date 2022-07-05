@@ -55,5 +55,9 @@ void mpiio_writer(int my_id, int *localvector, int localsize)
              process should write their own local vectors to correct location
              of the output file. */
 
+     MPI_File_open(MPI_COMM_WORLD, "mpiio.dat", MPI_MODE_RDWR, MPI_INFO_NULL, &fh);
+     MPI_File_write(fh, localvector, localsize, MPI_INT, MPI_STATUS_IGNORE);
+     MPI_File_close(&fh);
+     printf("Wrote %d elements to file mpiio.dat\n", DATASIZE);
 
 }

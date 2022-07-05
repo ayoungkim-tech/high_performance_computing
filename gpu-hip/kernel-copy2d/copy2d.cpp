@@ -4,7 +4,19 @@
 
 // TODO: add a device kernel that copies all elements of a vector
 //       using GPU threads in a 2D grid
+__global__ void copy2d_(int n, int m, double *x, double *y)
+{
+    int tidx = threadIdx.x + blockIdx.x * blockDim.x;
+    int tidy = threadIdx.y + blockIdx.y * blockDim.y;
+    int stridex = gridDim.x * blockDim.x;
+    int stridey = gridDim.y * blockDim.y;
 
+    for (; tidx < n; tidx += stridex) {
+        for (; tidy < m; tidy += stridey) {
+            y[tidx * m + tidy] = x[tidx * m + tidy];
+        }
+    }   
+}
 
 int main(void)
 {
@@ -28,13 +40,22 @@ int main(void)
     }
 
     // TODO: allocate vectors x_ and y_ on the GPU
+    hipMalloc(&x_, sizeof(double) * n * m);
+    hipMalloc(&y_, sizeof(double) * n * m);
+
     // TODO: copy initial values from CPU to GPU (x -> x_ and y -> y_)
+    hipMemcpy(x_, x, sizeof(double) * n * m, hipMemcpyHostToDevice);
+    hipMemcpy(y_, y, sizeof(double) * n * m, hipMemcpyHostToDevice);
 
     // TODO: define grid dimensions (use 2D grid!)
+    dim3 blocks(10, 5, 1);
+    dim3 threads(64, 5, 1);
+
     // TODO: launch the device kernel
-    hipLaunchKernelGGL(...);
+    hipLaunchKernelGGL(copy2d_, blocks, threads, 0, 0, n, m, x_, y_);
 
     // TODO: copy results back to CPU (y_ -> y)
+    hipMemcpy(y, y_, sizeof(double) * size, hipMemcpyDeviceToHost);
 
     // confirm that results are correct
     double error = 0.0;

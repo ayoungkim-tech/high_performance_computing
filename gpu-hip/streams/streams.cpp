@@ -66,6 +66,9 @@ int main(int argc, char **argv)
   printf("  max error: %e\n", maxError(a, n));
 
   // TODO: Create `nStream` streams here (nStream is defined already to be 4)
+  hipStream_t stream[nStreams];
+  for (int i = 0; i < nStreams; ++i)
+      hipStreamCreate(&stream[i]);
 
   // Async case 1: loop over {kernel}
   {
@@ -74,8 +77,14 @@ int main(int argc, char **argv)
     hipMemcpy(d_a, a, bytes, hipMemcpyHostToDevice);
   
     // TODO: loop over nStreams and split the case 1 kernel for 4 kernel calls (one for each stream)
-    // TODO: Each stream should handle 1/nStreams of work
-  
+    const int streamSize = n / nStreams;
+    for (int i = 0; i < nStreams; ++i)
+    {
+      int offset = i * streamSize;
+      // TODO: Each stream should handle 1/nStreams of work
+      hipLaunchKernelGGL(kernel, streamSize/blockSize, blockSize, 0, stream[i], d_a, offset);
+    }
+
     hipMemcpy(a, d_a, bytes, hipMemcpyDeviceToHost);
     hipEventRecord(stopEvent, 0);
     hipEventSynchronize(stopEvent);
@@ -89,21 +98,63 @@ int main(int argc, char **argv)
     memset(a, 0, bytes);
   
     // TODO: Same as case 1, except use asynchronous memcopies 
-    // TODO: Here split also the memcopies for each stream 
-    // TODO: Ie, looping over {async copy, kernel, async copy}
-    // TODO: You should also add the missing hipEvent function calls (cf. case 1)
+    hipEventRecord(startEvent, 0);
 
+    const int streamSize = n / nStreams;
+    const int streamBytes = streamSize * sizeof(float);
+    for (int i = 0; i < nStreams; ++i)
+    {
+      int offset = i * streamSize;
+      hipMemcpyAsync(&d_a[offset], &a[offset], streamBytes,hipMemcpyHostToDevice, stream[i]);
+
+      // TODO: Here split also the memcopies for each stream 
+      hipLaunchKernelGGL(kernel, streamSize/blockSize, blockSize, 0, stream[i], d_a, offset);
+
+      // TODO: Ie, looping over {async copy, kernel, async copy}
+      hipMemcpyAsync(&a[offset], &d_a[offset], streamBytes, hipMemcpyDeviceToHost, stream[i]);
+    }
+    // TODO: You should also add the missing hipEvent function calls (cf. case 1)
+    hipEventRecord(stopEvent, 0);
+    hipEventSynchronize(stopEvent);
+    hipEventElapsedTime(&duration, startEvent, stopEvent);
+  
     printf("Case 2 - Duration for asynchronous transfer+kernels: %f (ms)\n", duration);
     printf("  max error: %e\n", maxError(a, n));
-  }
+}
 
   // Async case 3: loop over {async copy}, loop over {kernel}, loop over {async copy}
   {
     memset(a, 0, bytes);
     // TODO: Same as case 2, except create 3 loops over the streams
+    hipEventRecord(startEvent, 0);
+
+    const int streamSize = n / nStreams;
+    const int streamBytes = streamSize * sizeof(float);
+
     // TODO: Ie, loop 1 {async copy} loop 2 {kernel}. loop 3 {async copy}
+    for (int i = 0; i < nStreams; ++i)
+    {
+      int offset = i * streamSize;
+      hipMemcpyAsync(&d_a[offset], &a[offset], streamBytes,hipMemcpyHostToDevice, stream[i]);
+    }
+
+    for (int i = 0; i < nStreams; ++i)
+    {
+     int offset = i * streamSize;
+     hipLaunchKernelGGL(kernel, streamSize/blockSize, blockSize, 0, stream[i], d_a, offset); 
+    }
+
+    for (int i = 0; i < nStreams; ++i)
+    {
+     int offset = i * streamSize;
+     hipMemcpyAsync(&a[offset], &d_a[offset], streamBytes, hipMemcpyDeviceToHost, stream[i]); 
+    }
+
     // TODO: You should also add the missing hipEvent function calls (cf. case 1)
-    
+    hipEventRecord(stopEvent, 0);
+    hipEventSynchronize(stopEvent);
+    hipEventElapsedTime(&duration, startEvent, stopEvent);
+   
     printf("Case 3 - Duration for asynchronous transfer+kernels: %f (ms)\n", duration);
     printf("  max error: %e\n", maxError(a, n));
   }
@@ -115,6 +166,8 @@ int main(int argc, char **argv)
   hipHostFree(a);
 
   // TODO: Destroy streams here
+  for (int i = 0; i < nStreams; ++i)
+  hipStreamDestroy(stream[i]);
 
   return 0;
 }

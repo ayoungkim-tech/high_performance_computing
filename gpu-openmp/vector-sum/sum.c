@@ -14,13 +14,22 @@ int main(void)
 
     // TODO: Implement vector addition vecC = vecA + vecB and use OpenMP
     //       for computing it in the device
+    #pragma omp target
+    #pragma omp teams
+    #pragma omp distribute
+
+    /* Compute the check value */
+    #pragma omp parallel
+    #pragma omp for
+    for (int i = 0; i < NX; i++) {
+        vecC[i] = vecA[i] + vecB[i];
+    }
 
     double sum = 0.0;
-    /* Compute the check value */
     for (int i = 0; i < NX; i++) {
         sum += vecC[i];
     }
-    printf("Reduction sum: %18.16f\n", sum);
 
+    printf("Reduction sum: %18.16f\n", sum);
     return 0;
 }

@@ -27,13 +27,12 @@ int fib(int n)
   int x, y;
   if (n < 2)
     return n;
-
+  #pragma omp task shared(x)
   x = fib(n - 1);
-
+  #pragma omp task shared(y)
   y = fib(n - 2);
-
+  #pragma omp taskwait
   return x+y;
-
 }
 
 
@@ -45,7 +44,11 @@ int main()
   scanf("%d",&n);
   starttime=omp_get_wtime();
 
-  fibonacci=fib(n);
+  #pragma omp parallel
+  {
+     #pragma omp single
+     fibonacci=fib(n);
+  }
 
   printf("fib(%d)=%d \n",n,fibonacci);
   printf("calculation took %lf sec\n",omp_get_wtime()-starttime);
